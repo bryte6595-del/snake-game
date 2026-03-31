@@ -1,10 +1,4 @@
-name: Build APK
-
-on: [push]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
+ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
@@ -15,20 +9,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install buildozer cython
           sudo apt update
           sudo apt install -y git zip unzip openjdk-17-jdk \
-            python3-pip autoconf libtool pkg-config \
-            zlib1g-dev libncurses5-dev libncursesw5-dev \
-            cmake libffi-dev libssl-dev
+            autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev cmake \
+            libffi-dev libssl-dev
+          pip install buildozer cython
 
       - name: Build APK
         run: |
-          buildozer init
-          sed -i "s/title = My Application/title = Snake Game/" buildozer.spec
-          sed -i "s/package.name = myapp/package.name = snakegame/" buildozer.spec
-          sed -i "s/package.domain = org.test/package.domain = org.bryte/" buildozer.spec
-          buildozer android debug
+          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
+          buildozer android debug 2>&1 | tail -50
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
