@@ -1,12 +1,5 @@
-"""
-game_widget.py — The Kivy widget that draws the game grid.
-
-It knows nothing about game rules; it just reads the GameModel and paints.
-Call draw(model) once after every move.
-"""
-
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, RoundedRectangle, Ellipse
 
 from config import (
     GRID_COLS, GRID_ROWS,
@@ -20,61 +13,61 @@ from snake_model import PowerUpType
 class GameWidget(Widget):
 
     def draw(self, model):
-        """Clear and repaint the entire grid from the current model state."""
         self.canvas.clear()
 
-        # Cell size in pixels (adapts to whatever screen size Kivy gives us)
-        cw = self.width  / GRID_COLS
-        ch = self.height / GRID_ROWS
+        # Force square cells
+        cell   = min(self.width / GRID_COLS, self.height / GRID_ROWS)
+        grid_w = cell * GRID_COLS
+        grid_h = cell * GRID_ROWS
+
+        # Centre the grid
+        ox = self.x + (self.width  - grid_w) / 2
+        oy = self.y + (self.height - grid_h) / 2
 
         with self.canvas:
 
-            # ── Background ────────────────────────────────────────────────────
+            # Background
             Color(*C_BACKGROUND)
             Rectangle(pos=self.pos, size=self.size)
 
-            # ── Subtle grid lines ─────────────────────────────────────────────
+            # Grid area
+            Color(0.08, 0.08, 0.08, 1)
+            Rectangle(pos=(ox, oy), size=(grid_w, grid_h))
+
+            # Grid lines
             Color(*C_GRID_LINE)
             for col in range(GRID_COLS + 1):
-                Rectangle(
-                    pos=(self.x + col * cw, self.y),
-                    size=(1, self.height),
-                )
+                Rectangle(pos=(ox + col * cell, oy), size=(1, grid_h))
             for row in range(GRID_ROWS + 1):
-                Rectangle(
-                    pos=(self.x, self.y + row * ch),
-                    size=(self.width, 1),
-                )
+                Rectangle(pos=(ox, oy + row * cell), size=(grid_w, 1))
 
-            # ── Food ──────────────────────────────────────────────────────────
+            # Food - circle
             fx, fy = model.food.position
+            pad = cell * 0.15
             Color(*C_FOOD)
-            Rectangle(
-                pos=(self.x + fx * cw + 2, self.y + fy * ch + 2),
-                size=(cw - 4, ch - 4),
+            Ellipse(
+                pos=(ox + fx * cell + pad, oy + fy * cell + pad),
+                size=(cell - pad * 2, cell - pad * 2),
             )
 
-            # ── Power-up (if one is on the grid) ──────────────────────────────
+            # Power-up - circle
             if model.powerup:
                 px, py = model.powerup.position
-                pu_color = (
-                    C_PU_SPEED
-                    if model.powerup.kind == PowerUpType.SPEED
-                    else C_PU_SHRINK
-                )
+                pu_color = C_PU_SPEED if model.powerup.kind == PowerUpType.SPEED else C_PU_SHRINK
                 Color(*pu_color)
-                Rectangle(
-                    pos=(self.x + px * cw + 2, self.y + py * ch + 2),
-                    size=(cw - 4, ch - 4),
+                Ellipse(
+                    pos=(ox + px * cell + pad, oy + py * cell + pad),
+                    size=(cell - pad * 2, cell - pad * 2),
                 )
 
-            # ── Snake (draw tail → body → head so head is on top) ─────────────
+            # Snake - rounded rectangles
             length = len(model.snake.body)
+            radius = max(2, cell * 0.25)
             for i, (bx, by) in enumerate(reversed(model.snake.body)):
-                # i == length-1 means we've reached the head (index 0 of body)
                 is_head = (i == length - 1)
                 Color(*(C_SNAKE_HEAD if is_head else C_SNAKE_BODY))
-                Rectangle(
-                    pos=(self.x + bx * cw + 1, self.y + by * ch + 1),
-                    size=(cw - 2, ch - 2),
+                RoundedRectangle(
+                    pos=(ox + bx * cell + 1, oy + by * cell + 1),
+                    size=(cell - 2, cell - 2),
+                    radius=[radius],
                 )
