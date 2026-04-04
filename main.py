@@ -8,7 +8,7 @@ Run with:
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager
 
-from screens import MenuScreen, GameScreen, GameOverScreen
+from screens import MenuScreen, GameScreen
 
 
 class SnakeApp(App):
@@ -16,7 +16,6 @@ class SnakeApp(App):
         sm = ScreenManager()
         sm.add_widget(MenuScreen(name='menu'))
         sm.add_widget(GameScreen(name='game'))
-        sm.add_widget(GameOverScreen(name='gameover'))
         return sm
 
 
