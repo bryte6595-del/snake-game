@@ -1,5 +1,6 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.clock import Clock
@@ -25,20 +26,26 @@ class MenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._selected = config.DEFAULT_DIFFICULTY
-        self._diff_buttons = {}
 
         layout = BoxLayout(orientation='vertical', padding=40, spacing=16)
 
         layout.add_widget(Label(
             text='SNAKE',
-            font_size='52sp',
+            font_size='56sp',
             bold=True,
             color=(0.25, 0.90, 0.25, 1),
         ))
 
+        layout.add_widget(Label(
+            text='[i][color=4488ff]By Bryte[/color][/i]',
+            font_size='22sp',
+            markup=True,
+            halign='center',
+        ))
+
         self.hs_label = Label(
             text=f'High Score: {load_high_score()}',
-            font_size='24sp',
+            font_size='22sp',
         )
         layout.add_widget(self.hs_label)
 
@@ -48,14 +55,14 @@ class MenuScreen(Screen):
                 'Blue = speed boost  |  Yellow = shrink tail\n'
                 'Swipe to move[/color]'
             ),
-            font_size='15sp',
+            font_size='14sp',
             markup=True,
             halign='center',
         ))
 
         layout.add_widget(Label(text='Select Difficulty', font_size='18sp'))
 
-        diff_row = BoxLayout(spacing=10, size_hint=(1, 0.2))
+        diff_row = BoxLayout(spacing=10, size_hint=(1, 0.18))
         colours = {
             'Easy':   (0.10, 0.75, 0.10, 1),
             'Normal': (0.90, 0.75, 0.10, 1),
@@ -69,7 +76,6 @@ class MenuScreen(Screen):
                 background_normal='',
             )
             btn.bind(on_press=lambda b, l=level: self._pick_difficulty(l))
-            self._diff_buttons[level] = btn
             diff_row.add_widget(btn)
         layout.add_widget(diff_row)
 
@@ -80,7 +86,7 @@ class MenuScreen(Screen):
         )
         layout.add_widget(self.selected_label)
 
-        play_btn = Button(text='Play', font_size='30sp', size_hint=(1, 0.25))
+        play_btn = Button(text='Play', font_size='30sp', size_hint=(1, 0.22))
         play_btn.bind(on_press=self._start_game)
         layout.add_widget(play_btn)
 
@@ -111,34 +117,109 @@ class GameScreen(Screen):
         self._kb     = None
         self._paused = False
 
-        root = BoxLayout(orientation='vertical')
+        # FloatLayout lets us overlay the Game Over panel on the grid
+        root = FloatLayout()
 
-        # ── HUD ───────────────────────────────────────────────────────────────
-        hud = BoxLayout(size_hint=(1, None), height=56, padding=(10, 4), spacing=8)
+        # ── Main game layout (fills screen) ───────────────────────────────────
+        game_layout = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, 1),
+            pos_hint={'x': 0, 'y': 0},
+        )
 
-        self.score_label = Label(text='Score: 0', font_size='20sp',
-                                 halign='left', size_hint=(0.35, 1))
-        self.info_label  = Label(text='', font_size='15sp',
-                                 halign='center', size_hint=(0.3, 1))
+        # ── Top bar: pause button only ────────────────────────────────────────
+        top_bar = BoxLayout(size_hint=(1, None), height=52, padding=(8, 4))
 
+        self.info_label = Label(
+            text='',
+            font_size='15sp',
+            halign='left',
+            size_hint=(0.7, 1),
+        )
         self.pause_btn = Button(
-            text='Pause',
-            font_size='18sp',
-            size_hint=(0.35, 1),
-            background_color=(0.2, 0.2, 0.6, 1),
+            text='II',
+            font_size='22sp',
+            bold=True,
+            size_hint=(0.3, 1),
+            background_color=(0.15, 0.15, 0.50, 1),
             background_normal='',
         )
         self.pause_btn.bind(on_press=self._toggle_pause)
-
-        hud.add_widget(self.score_label)
-        hud.add_widget(self.info_label)
-        hud.add_widget(self.pause_btn)
-        root.add_widget(hud)
+        top_bar.add_widget(self.info_label)
+        top_bar.add_widget(self.pause_btn)
+        game_layout.add_widget(top_bar)
 
         # ── Game canvas ───────────────────────────────────────────────────────
         self.game_widget = GameWidget()
-        root.add_widget(self.game_widget)
+        game_layout.add_widget(self.game_widget)
 
+        # ── Bottom bar: score and high score ──────────────────────────────────
+        bottom_bar = BoxLayout(size_hint=(1, None), height=48, padding=(10, 4))
+
+        self.score_label = Label(
+            text='Score: 0',
+            font_size='20sp',
+            halign='left',
+            size_hint=(0.5, 1),
+        )
+        self.hs_label = Label(
+            text=f'Best: {load_high_score()}',
+            font_size='20sp',
+            halign='right',
+            size_hint=(0.5, 1),
+        )
+        bottom_bar.add_widget(self.score_label)
+        bottom_bar.add_widget(self.hs_label)
+        game_layout.add_widget(bottom_bar)
+
+        root.add_widget(game_layout)
+
+        # ── Game Over overlay (hidden initially) ──────────────────────────────
+        self.overlay = BoxLayout(
+            orientation='vertical',
+            padding=30,
+            spacing=14,
+            size_hint=(0.85, 0.55),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
+        )
+        from kivy.graphics import Color, RoundedRectangle
+        with self.overlay.canvas.before:
+            Color(0.05, 0.05, 0.05, 0.93)
+            self._overlay_bg = RoundedRectangle(
+                pos=self.overlay.pos,
+                size=self.overlay.size,
+                radius=[16],
+            )
+        self.overlay.bind(
+            pos=lambda w, v: setattr(self._overlay_bg, 'pos', v),
+            size=lambda w, v: setattr(self._overlay_bg, 'size', v),
+        )
+
+        self.overlay.add_widget(Label(
+            text='Game Over',
+            font_size='36sp',
+            bold=True,
+            color=(0.95, 0.25, 0.25, 1),
+        ))
+        self.over_score_label = Label(text='', font_size='24sp')
+        self.over_hs_label    = Label(text='', font_size='18sp',
+                                      color=(0.95, 0.85, 0.15, 1))
+        self.overlay.add_widget(self.over_score_label)
+        self.overlay.add_widget(self.over_hs_label)
+
+        btn_row = BoxLayout(spacing=12, size_hint=(1, None), height=52)
+        retry_btn = Button(text='Play Again', font_size='20sp')
+        menu_btn  = Button(text='Menu',       font_size='20sp')
+        retry_btn.bind(on_press=self._retry)
+        menu_btn.bind( on_press=lambda *_: setattr(self.manager, 'current', 'menu'))
+        btn_row.add_widget(retry_btn)
+        btn_row.add_widget(menu_btn)
+        self.overlay.add_widget(btn_row)
+
+        self.overlay.opacity = 0  # hidden at start
+        root.add_widget(self.overlay)
+
+        # Swipe tracking
         self.game_widget.bind(on_touch_down=self._touch_down)
         self.game_widget.bind(on_touch_up=self._touch_up)
         self._touch_start = None
@@ -148,13 +229,14 @@ class GameScreen(Screen):
     # ── Screen lifecycle ──────────────────────────────────────────────────────
 
     def on_pre_enter(self, *_):
-        self.model        = GameModel()
-        self._paused      = False
-        self.pause_btn.text = 'Pause'
-        self.score_label.text = 'Score: 0'
-        self.info_label.text  = ''
+        self.model              = GameModel()
+        self._paused            = False
+        self.overlay.opacity    = 0
+        self.pause_btn.text     = 'II'
+        self.score_label.text   = 'Score: 0'
+        self.hs_label.text      = f'Best: {load_high_score()}'
+        self.info_label.text    = ''
 
-        # Only request keyboard on desktop — avoids popup on Android
         if platform not in ('android', 'ios'):
             self._kb = Window.request_keyboard(self._kb_closed, self)
             self._kb.bind(on_key_down=self._key_down)
@@ -174,7 +256,11 @@ class GameScreen(Screen):
         if self.model.state != 'running' and not self._paused:
             return
         self._paused = not self._paused
-        self.pause_btn.text = 'Resume' if self._paused else 'Pause'
+        self.pause_btn.text = '▶' if self._paused else 'II'
+
+    def _retry(self, *_):
+        self.overlay.opacity = 0
+        self.on_pre_enter()
 
     # ── Game loop ─────────────────────────────────────────────────────────────
 
@@ -190,17 +276,16 @@ class GameScreen(Screen):
 
             pu = self.model.powerup
             if pu:
-                icon  = 'S+' if pu.kind == PowerUpType.SPEED else 'S-'
                 label = 'Speed' if pu.kind == PowerUpType.SPEED else 'Shrink'
-                self.info_label.text = f'{icon} {label} {pu.time_left:.1f}s'
+                self.info_label.text = f'{label} {pu.time_left:.1f}s'
             else:
                 self.info_label.text = ''
 
         if self.model.state == 'dead':
             save_high_score(self.model.score)
-            go_screen = self.manager.get_screen('gameover')
-            go_screen.set_score(self.model.score)
-            self.manager.current = 'gameover'
+            self.over_score_label.text = f'Your Score: {self.model.score}'
+            self.over_hs_label.text    = f'High Score: {load_high_score()}'
+            self.overlay.opacity       = 1
 
     # ── Keyboard ──────────────────────────────────────────────────────────────
 
@@ -234,40 +319,3 @@ class GameScreen(Screen):
             self.model.change_direction(Direction.UP if dy > 0 else Direction.DOWN)
 
         self._touch_start = None
-
-
-# ── Game Over Screen ──────────────────────────────────────────────────────────
-
-class GameOverScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        layout = BoxLayout(orientation='vertical', padding=40, spacing=16)
-
-        layout.add_widget(Label(
-            text='Game Over',
-            font_size='44sp',
-            bold=True,
-            color=(0.95, 0.25, 0.25, 1),
-        ))
-
-        self.score_label = Label(text='', font_size='28sp')
-        self.hs_label    = Label(text='', font_size='20sp',
-                                 color=(0.95, 0.85, 0.15, 1))
-        layout.add_widget(self.score_label)
-        layout.add_widget(self.hs_label)
-
-        btn_row = BoxLayout(spacing=16, size_hint=(1, 0.25))
-        retry_btn = Button(text='Play Again', font_size='24sp')
-        menu_btn  = Button(text='Menu',       font_size='24sp')
-        retry_btn.bind(on_press=lambda *_: setattr(self.manager, 'current', 'game'))
-        menu_btn.bind( on_press=lambda *_: setattr(self.manager, 'current', 'menu'))
-        btn_row.add_widget(retry_btn)
-        btn_row.add_widget(menu_btn)
-        layout.add_widget(btn_row)
-
-        self.add_widget(layout)
-
-    def set_score(self, score: int):
-        self.score_label.text = f'Your Score: {score}'
-        self.hs_label.text    = f'High Score: {load_high_score()}'
